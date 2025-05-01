@@ -65,9 +65,7 @@ def parse_frame(frame, vod: VOD):
             "velocity": velocity,
             "size": obj["size"],
             "visible": obj["visibility_token"],
-            "attribute": [
-                vod.get("attribute", i)["name"] for i in obj["attribute_tokens"]
-            ],
+            "attribute": [vod.get("attribute", i)["name"] for i in obj["attribute_tokens"]],
             "type": obj["category_name"],
         }
     # print(frame["data"]["dummy"])
@@ -93,16 +91,10 @@ def interpolate_heading(heading_data, old_valid, new_valid, num_to_interpolate=1
         if abs(valid) > 1e-1 and abs(old_valid[k + 1]) > 1e-1:
             diff = (heading_data[k + 1] - heading_data[k] + np.pi) % (2 * np.pi) - np.pi
             # step = diff
-            interpolate_heading = np.linspace(
-                heading_data[k], heading_data[k] + diff, 2
-            )  # not sure if 2 is correct
-            new_heading_theta[k * num_to_interpolate : (k + 1) * num_to_interpolate] = (
-                interpolate_heading[:-1]
-            )
+            interpolate_heading = np.linspace(heading_data[k], heading_data[k] + diff, 2)  # not sure if 2 is correct
+            new_heading_theta[k * num_to_interpolate:(k + 1) * num_to_interpolate] = (interpolate_heading[:-1])
         elif abs(valid) > 1e-1 and abs(old_valid[k + 1]) < 1e-1:
-            new_heading_theta[k * num_to_interpolate : (k + 1) * num_to_interpolate] = (
-                heading_data[k]
-            )
+            new_heading_theta[k * num_to_interpolate:(k + 1) * num_to_interpolate] = (heading_data[k])
     new_heading_theta[-1] = heading_data[-1]
     return new_heading_theta * new_valid
 
@@ -113,14 +105,10 @@ def _interpolate_one_dim(data, old_valid, new_valid, num_to_interpolate=1):
         if abs(valid) > 1e-1 and abs(old_valid[k + 1]) > 1e-1:
             diff = data[k + 1] - data[k]
             # step = diff
-            interpolate_data = np.linspace(
-                data[k], data[k] + diff, num_to_interpolate + 1
-            )
-            new_data[k * num_to_interpolate : (k + 1) * num_to_interpolate] = (
-                interpolate_data[:-1]
-            )
+            interpolate_data = np.linspace(data[k], data[k] + diff, num_to_interpolate + 1)
+            new_data[k * num_to_interpolate:(k + 1) * num_to_interpolate] = (interpolate_data[:-1])
         elif abs(valid) > 1e-1 and abs(old_valid[k + 1]) < 1e-1:
-            new_data[k * num_to_interpolate : (k + 1) * num_to_interpolate] = data[k]
+            new_data[k * num_to_interpolate:(k + 1) * num_to_interpolate] = data[k]
     new_data[-1] = data[-1]
     return new_data * new_valid
 
@@ -151,9 +139,9 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
             type=MetaDriveType.UNSET,
             state=dict(
                 position=np.zeros(shape=(episode_len, 3)),
-                heading=np.zeros(shape=(episode_len,)),
+                heading=np.zeros(shape=(episode_len, )),
                 velocity=np.zeros(shape=(episode_len, 2)),
-                valid=np.zeros(shape=(episode_len,)),
+                valid=np.zeros(shape=(episode_len, )),
                 length=np.zeros(shape=(episode_len, 1)),
                 width=np.zeros(shape=(episode_len, 1)),
                 height=np.zeros(shape=(episode_len, 1)),
@@ -195,16 +183,12 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
             tracks[id][SD.METADATA]["type"] = meta_type
 
             # Introducing the state item
-            if ((frame_idx == 0) or (frame_idx == 1)) and (
-                id == list(frames[frame_idx].keys())[0]
-            ):
+            if ((frame_idx == 0) or (frame_idx == 1)) and (id == list(frames[frame_idx].keys())[0]):
                 if state["position"][0] != 0:
                     print(state["position"], md_type)
             tracks[id]["state"]["position"][frame_idx] = state["position"]
             tracks[id]["state"]["heading"][frame_idx] = state["heading"]
-            tracks[id]["state"]["velocity"][frame_idx] = tracks[id]["state"][
-                "velocity"
-            ][frame_idx]
+            tracks[id]["state"]["velocity"][frame_idx] = tracks[id]["state"]["velocity"][frame_idx]
             tracks[id]["state"]["valid"][frame_idx] = 1
 
             tracks[id]["state"]["length"][frame_idx] = state["size"][1]
@@ -224,14 +208,14 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
     # interpolate
     interpolate_tracks = {}
     for (
-        id,
-        track,
+            id,
+            track,
     ) in tracks.items():
         interpolate_tracks[id] = copy.deepcopy(track)
         interpolate_tracks[id]["metadata"]["track_length"] = new_episode_len
 
         # valid first
-        new_valid = np.zeros(shape=(new_episode_len,))
+        new_valid = np.zeros(shape=(new_episode_len, ))
         if track["state"]["valid"][0]:
             new_valid[0] = 1
         for k, valid in enumerate(track["state"]["valid"][1:], start=1):
@@ -240,7 +224,7 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
                     start_idx = (k - 1) * num_to_interpolate + 1
                 else:
                     start_idx = k * num_to_interpolate
-                new_valid[start_idx : k * num_to_interpolate + 1] = 1
+                new_valid[start_idx:k * num_to_interpolate + 1] = 1
         interpolate_tracks[id]["state"]["valid"] = new_valid
 
         # position
@@ -254,18 +238,9 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
             # We can get it from canbus
             try:
                 canbus = VODCanBus(dataroot=vod.dataroot)
-                imu_pos = np.asarray(
-                    [
-                        state["pos"]
-                        for state in canbus.get_messages(scene_info["name"], "pose")[
-                            ::5
-                        ]
-                    ]
-                )
+                imu_pos = np.asarray([state["pos"] for state in canbus.get_messages(scene_info["name"], "pose")[::5]])
                 min_len = min(len(imu_pos), new_episode_len)
-                interpolate_tracks[id]["state"]["position"][:min_len] = imu_pos[
-                    :min_len
-                ]
+                interpolate_tracks[id]["state"]["position"][:min_len] = imu_pos[:min_len]
             except:
                 logger.info("Fail to get canbus data for {}".format(scene_info["name"]))
 
@@ -273,29 +248,20 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
         interpolate_tracks[id]["state"]["velocity"] = interpolate(
             track["state"]["velocity"], track["state"]["valid"], new_valid
         )
-        vel = (
-            interpolate_tracks[id]["state"]["position"][1:]
-            - interpolate_tracks[id]["state"]["position"][:-1]
-        )
+        vel = (interpolate_tracks[id]["state"]["position"][1:] - interpolate_tracks[id]["state"]["position"][:-1])
         interpolate_tracks[id]["state"]["velocity"][:-1] = vel[..., :2] / 0.1
         for k, valid in enumerate(new_valid[1:], start=1):
             if valid == 0 or not valid or abs(valid) < 1e-2:
                 interpolate_tracks[id]["state"]["velocity"][k] = np.array([0.0, 0.0])
-                interpolate_tracks[id]["state"]["velocity"][k - 1] = np.array(
-                    [0.0, 0.0]
-                )
+                interpolate_tracks[id]["state"]["velocity"][k - 1] = np.array([0.0, 0.0])
         # speed outlier check
-        max_vel = np.max(
-            np.linalg.norm(interpolate_tracks[id]["state"]["velocity"], axis=-1)
-        )
+        max_vel = np.max(np.linalg.norm(interpolate_tracks[id]["state"]["velocity"], axis=-1))
         if max_vel > 30:
             print("\nWARNING: Too large speed for {}: {}".format(id, max_vel))
 
         # heading
         # then update position
-        new_heading = interpolate_heading(
-            track["state"]["heading"], track["state"]["valid"], new_valid
-        )
+        new_heading = interpolate_heading(track["state"]["heading"], track["state"]["valid"], new_valid)
         interpolate_tracks[id]["state"]["heading"] = new_heading
         if id == "ego" and not scene_info.get("prediction", False):
             assert "prediction" not in scene_info
@@ -305,15 +271,11 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
                 imu_heading = np.asarray(
                     [
                         quaternion_yaw(Quaternion(state["orientation"]))
-                        for state in canbus.get_messages(scene_info["name"], "pose")[
-                            ::5
-                        ]
+                        for state in canbus.get_messages(scene_info["name"], "pose")[::5]
                     ]
                 )
                 min_len = min(len(imu_heading), new_episode_len)
-                interpolate_tracks[id]["state"]["heading"][:min_len] = imu_heading[
-                    :min_len
-                ]
+                interpolate_tracks[id]["state"]["heading"][:min_len] = imu_heading[:min_len]
             except:
                 logger.info("Fail to get canbus data for {}".format(scene_info["name"]))
 
@@ -321,17 +283,13 @@ def get_tracks_from_frames(vod: VOD, scene_info, frames, num_to_interpolate=5):
             if k in ["valid", "heading", "position", "velocity"]:
                 continue
             else:
-                interpolate_tracks[id]["state"][k] = interpolate(
-                    v, track["state"]["valid"], new_valid
-                )
+                interpolate_tracks[id]["state"][k] = interpolate(v, track["state"]["valid"], new_valid)
         # if id == "ego":
         # ego is valid all time, so we can calculate the velocity in this way
     return interpolate_tracks
 
 
-def get_map_features(
-    scene_info, vod: VOD, map_center, radius=500, points_distance=1, only_lane=False
-):
+def get_map_features(scene_info, vod: VOD, map_center, radius=500, points_distance=1, only_lane=False):
     """
     Extract map features from vod data. The objects in specified region will be returned. Sampling rate determines
     the distance between 2 points when extracting lane center line.
@@ -359,9 +317,7 @@ def get_map_features(
     ]
     # road segment includes all roadblocks (a list of lanes in the same direction), intersection and unstructured road
 
-    map_objs = map_api.get_records_in_radius(
-        map_center[0], map_center[1], radius, layer_names
-    )
+    map_objs = map_api.get_records_in_radius(map_center[0], map_center[1], radius, layer_names)
 
     if not only_lane:
         # build map boundary
@@ -383,13 +339,9 @@ def get_map_features(
         #     polygon = map_api.extract_polygon(seg_info["polygon_token"])
         #     polygons.append(polygon)
         polygons = [geom if geom.is_valid else geom.buffer(0) for geom in polygons]
-        boundaries = gpd.GeoSeries(unary_union(polygons)).boundary.explode(
-            index_parts=True
-        )
+        boundaries = gpd.GeoSeries(unary_union(polygons)).boundary.explode(index_parts=True)
         for idx, boundary in enumerate(boundaries[0]):
-            block_points = np.array(
-                list(i for i in zip(boundary.coords.xy[0], boundary.coords.xy[1]))
-            )
+            block_points = np.array(list(i for i in zip(boundary.coords.xy[0], boundary.coords.xy[1])))
             id = "boundary_{}".format(idx)
             ret[id] = {
                 SD.TYPE: MetaDriveType.LINE_SOLID_SINGLE_WHITE,
@@ -417,9 +369,7 @@ def get_map_features(
             info = map_api.get("ped_crossing", id)
             assert info["token"] == id
             boundary = map_api.extract_polygon(info["polygon_token"]).exterior.xy
-            boundary_polygon = np.asarray(
-                [[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))]
-            )
+            boundary_polygon = np.asarray([[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))])
             ret[id] = {
                 SD.TYPE: MetaDriveType.CROSSWALK,
                 SD.POLYGON: boundary_polygon,
@@ -430,9 +380,7 @@ def get_map_features(
             info = map_api.get("walkway", id)
             assert info["token"] == id
             boundary = map_api.extract_polygon(info["polygon_token"]).exterior.xy
-            boundary_polygon = np.asarray(
-                [[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))]
-            )
+            boundary_polygon = np.asarray([[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))])
             ret[id] = {
                 SD.TYPE: MetaDriveType.BOUNDARY_SIDEWALK,
                 SD.POLYGON: boundary_polygon,
@@ -443,17 +391,11 @@ def get_map_features(
         lane_info = map_api.get("lane", id)
         assert lane_info["token"] == id
         boundary = map_api.extract_polygon(lane_info["polygon_token"]).boundary.xy
-        boundary_polygon = np.asarray(
-            [[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))]
-        )
+        boundary_polygon = np.asarray([[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))])
         # boundary_polygon += [[boundary[0][i], boundary[1][i]] for i in range(len(boundary[0]))]
         ret[id] = {
             SD.TYPE: MetaDriveType.LANE_SURFACE_STREET,
-            SD.POLYLINE: np.asarray(
-                discretize_lane(
-                    map_api.arcline_path_3[id], resolution_meters=points_distance
-                )
-            ),
+            SD.POLYLINE: np.asarray(discretize_lane(map_api.arcline_path_3[id], resolution_meters=points_distance)),
             SD.POLYGON: boundary_polygon,
             SD.ENTRY: map_api.get_incoming_lane_ids(id),
             SD.EXIT: map_api.get_outgoing_lane_ids(id),
@@ -470,11 +412,7 @@ def get_map_features(
         # boundary_polygon += [[boundary[0][i], boundary[1][i], 0.] for i in range(len(boundary[0]))]
         ret[id] = {
             SD.TYPE: MetaDriveType.LANE_SURFACE_UNSTRUCTURE,
-            SD.POLYLINE: np.asarray(
-                discretize_lane(
-                    map_api.arcline_path_3[id], resolution_meters=points_distance
-                )
-            ),
+            SD.POLYLINE: np.asarray(discretize_lane(map_api.arcline_path_3[id], resolution_meters=points_distance)),
             # SD.POLYGON: boundary_polygon,
             "speed_limit_kmh": 100,
             SD.ENTRY: map_api.get_incoming_lane_ids(id),
@@ -530,9 +468,7 @@ def convert_vod_scenario(
                 break
             next_sample = vode.get("sample", next_sample["next"])
             future_samples.append(parse_frame(next_sample, vode))
-        frames = (
-            past_samples[::-1] + [parse_frame(current_sample, vode)] + future_samples
-        )
+        frames = (past_samples[::-1] + [parse_frame(current_sample, vode)] + future_samples)
         scene_info = copy.copy(vode.get("scene", current_sample["scene_token"]))
         scene_info["name"] = scene_info["name"] + "_" + token
         scene_info["prediction"] = True
@@ -550,9 +486,7 @@ def convert_vod_scenario(
     result[SD.METADATA]["dataset"] = "vod"
     result[SD.METADATA][SD.METADRIVE_PROCESSED] = False
     result[SD.METADATA]["map"] = vodelft.get("log", scene_info["log_token"])["location"]
-    result[SD.METADATA]["date"] = vodelft.get("log", scene_info["log_token"])[
-        "date_captured"
-    ]
+    result[SD.METADATA]["date"] = vodelft.get("log", scene_info["log_token"])["date_captured"]
     result[SD.METADATA]["coordinate"] = "right-handed"
     # result[SD.METADATA]["dscenario_token"] = scene_token
     result[SD.METADATA][SD.ID] = scene_info["name"]
@@ -560,9 +494,7 @@ def convert_vod_scenario(
     result[SD.METADATA]["sample_rate"] = scenario_log_interval
     result[SD.METADATA][SD.TIMESTEP] = np.arange(0.0, len(frames), 1) * 0.1
     # interpolating to 0.1s interval
-    result[SD.TRACKS] = get_tracks_from_frames(
-        vodelft, scene_info, frames, num_to_interpolate=1
-    )
+    result[SD.TRACKS] = get_tracks_from_frames(vodelft, scene_info, frames, num_to_interpolate=1)
     result[SD.METADATA][SD.SDC_ID] = "ego"
 
     # No traffic light in vod at this stage
@@ -581,9 +513,7 @@ def convert_vod_scenario(
     # map
     print(result[SD.LENGTH], len(result[SD.METADATA][SD.TIMESTEP]))
     map_center = np.array(result[SD.TRACKS]["ego"]["state"]["position"][0])
-    result[SD.MAP_FEATURES] = get_map_features(
-        scene_info, vodelft, map_center, map_radius, only_lane=only_lane
-    )
+    result[SD.MAP_FEATURES] = get_map_features(scene_info, vodelft, map_center, map_radius, only_lane=only_lane)
     del frames_scene_info
     del frames
     del scene_info
@@ -625,6 +555,4 @@ def get_vod_prediction_split(dataroot, version, past, future, num_workers=2):
 
     vode = VOD(version=split_to_scene[version], dataroot=dataroot)
 
-    return get_prediction_challenge_split(version, dataroot=dataroot), [
-        vode for _ in range(num_workers)
-    ]
+    return get_prediction_challenge_split(version, dataroot=dataroot), [vode for _ in range(num_workers)]
